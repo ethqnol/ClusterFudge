@@ -1,7 +1,10 @@
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from numba import prange, njit
 from enum import Enum
+
+
 
 class DistanceMetrics(Enum):
     HAMMING = 'hamming'
@@ -13,11 +16,11 @@ class DistanceMetrics(Enum):
 
 # X is data, Centroids is centroids
 @njit(parallel=True, fastmath=True)
-def hamming(X:np.ndarray, centroids:np.ndarray) -> np.ndarray: #np.array enforces compiler check on the type you're passing in (must be an np.array)
+def hamming(X:np.ndarray, centroids:np.ndarray) -> npt.NDArray[np.float64]: #np.array enforces compiler check on the type you're passing in (must be an np.array)
     assert X.shape[1] == centroids.shape[1] # (taking the first index of shape, should be equal to the first index of centroids. Shape's index of [1] is the number of columns!)the first point must have the same shape (same number of arguments) as the first centroid
     rows = X.shape[0] # NUMBER of rows
     n_clusters = centroids.shape[0] #number of columns of distance matrix = number of centroids
-    distance = np.zeros((rows, n_clusters), dtype=int)#matrix
+    distance: npt.NDArray[np.float64] = np.zeros((rows, n_clusters), dtype=int)#matrix
     for i in prange(rows): # iterate from 0 through the number of rows
         for j in range(n_clusters):
             dist = 0
@@ -29,7 +32,7 @@ def hamming(X:np.ndarray, centroids:np.ndarray) -> np.ndarray: #np.array enforce
 
 
 @njit(parallel=True, fastmath=True)
-def jaccard(X:np.ndarray, centroids:np.ndarray) -> np.ndarray: #np.array enforces compiler check on the type you're passing in (must be an np.array)
+def jaccard(X:np.ndarray, centroids:np.ndarray) -> npt.NDArray[np.float64]: #np.array enforces compiler check on the type you're passing in (must be an np.array)
     assert X.shape[1] == centroids.shape[1] # (taking the first index of shape, should be equal to the first index of centroids. Shape's index of [1] is the number of columns!)the first point must have the same shape (same number of arguments) as the first centroid
     rows, cols = X.shape # NUMBER of rows
     n_clusters = centroids.shape[0] #number of columns of distance matrix = number of centroids
@@ -44,7 +47,7 @@ def jaccard(X:np.ndarray, centroids:np.ndarray) -> np.ndarray: #np.array enforce
     return distance
 
 
-def distance(X:np.ndarray, centroids:np.ndarray, metric:DistanceMetrics) -> np.ndarray:
+def distance(X:np.ndarray, centroids:np.ndarray, metric:DistanceMetrics) -> npt.NDArray[np.float64]:
     if metric == DistanceMetrics.HAMMING:
         return hamming(X, centroids)
     elif metric == DistanceMetrics.JACCARD:
