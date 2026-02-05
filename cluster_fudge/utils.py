@@ -47,7 +47,8 @@ def jaccard(X:np.ndarray, centroids:np.ndarray) -> npt.NDArray[np.float64]: #np.
             distance[i][j] = dist/(cols * 2 - dist) #double the num of columns (because a union between both centroids and data points), then subtract the numner of similar elements
     return distance
 
-
+def ng(X, centroids):
+    pass
 
 def distance(X:np.ndarray, centroids:np.ndarray, metric:DistanceMetrics) -> npt.NDArray[np.float64]:
     if metric == DistanceMetrics.HAMMING:

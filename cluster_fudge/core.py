@@ -37,7 +37,7 @@ class ClusterFudge:
                 points_in_centroid = X[mask]
                 centroid_object = []
                 for i, var in enumerate(
-                    points_in_centroid.items()
+                    points_in_centroid
                 ):  # can iterate over the index and the value (index is assigned to i, value is assigned to var)
                     centroid_object[i] = var.mode()
                 self.centroids[centroid] = (
