@@ -1,6 +1,8 @@
 import numpy.typing as npt
 import numpy as np
-from cluster_fudge.utils import DistanceMetrics, distance
+from cluster_fudge.dist import DistanceMetrics, distance
+from cluster_fudge.init import init_centroids, InitMethod
+from cluster_fudge.utils import update_centroids_mode
 
 
 class ClusterFudge:
@@ -9,7 +11,8 @@ class ClusterFudge:
         n_clusters: int = 8,
         n_init: int = 10,
         max_iter: int = 100,
-        dist_metric: DistanceMetrics = DistanceMetrics.HAMMING,
+        init_method: str = "cao",
+        dist_metric: str = "hamming",
     ) -> None:
         self.n_clusters = n_clusters
         self.n_init = n_init
@@ -17,29 +20,91 @@ class ClusterFudge:
         self.dist_metric = dist_metric
         self.centroids = None
         self.labels = None
+        self.encodings = []
+        self.decoded_centroids = None
+        self.is_df = False
+
+        if init_method == "random":
+            self.init_method = InitMethod.RAND
+        elif init_method == "huang":
+            self.init_method = InitMethod.HUANG
+        elif init_method == "cao":
+            self.init_method = InitMethod.CAO
+        else:
+            raise ValueError(f"Unknown init method: {init_method}")
+
+        if dist_metric == "hamming":
+            self.dist_metric = DistanceMetrics.HAMMING
+        elif dist_metric == "jaccard":
+            self.dist_metric = DistanceMetrics.JACCARD
+        elif dist_metric == "ng":
+            self.dist_metric = DistanceMetrics.NG
+        else:
+            raise ValueError(f"Unknown distance metric: {dist_metric}")
+
+    def _encode(self, X: npt.ndarray) -> npt.NDArray[np.int64]:
+        self.encodings = []
+        X_encoded = np.zeros(X.shape, dtype=int)
+
+        # every column has its own integer encoding
+        # e.g. for mapping ["a", "b", "c"] -> [0, 1, 2], we have ["a", "b", "c", "a", "b"] -> [0, 1, 2, 0, 1]
+        for i in range(X.shape[1]):
+            unique_vals, encoded = np.unique(X[:, i], return_inverse=True)
+            self.encodings.append(unique_vals)
+            X_encoded[:, i] = encoded
+
+        return X_encoded
+
+    def _decode(self, centroids_encoded: npt.NDArray[np.int64]) -> npt.NDArray[np.str_]:
+        """
+        Decode the centroids from integer encoding to original values.
+
+        Args:
+            centroids_encoded: (npt.NDArray[np.int64]) Array of encoded centroids (n_clusters, n_features)
+
+        Returns:
+            (npt.NDArray[np.str_]) Decoded centroids array (n_clusters, n_features)
+        """
+
+        decoded = []
+        for i in range(len(self.encodings)):
+            col_map = self.encodings[i]
+            decoded_col = col_map[centroids_encoded[:, i].astype(int)]
+            decoded.append(decoded_col)
+
+        # decoded is a list of arrays representing columns; stack horizontally so each row is a centroid
+        return np.array(decoded).T
 
     def fit(self, X: npt.NDArray[np.float64]) -> None:
-        self.centroids = np.random.rand(self.n_clusters, X.shape[1])
+        """
+        Fit the model to the input data.
+
+        Args:
+            X: (npt.NDArray[np.float64]) Data array (n_samples, n_features)
+
+        Returns:
+            None
+        """
+
+        # check if X is a pandas dataframe, if so, convert to numpy array
+        if hasattr(X, "values"):
+            X = X.values
+            self.is_df = True
+        else:
+            X = np.asarray(X)
+
+        # encode X into integer array for efficiency
+        X = self._encode(X)
+        self.centroids = init_centroids(X, self.n_clusters, self.init_method)
+
         self.labels = np.zeros(X.shape[0], dtype=int)
         for i in range(self.max_iter):  # for the number of iterations, fit, then adjust
             dist = distance(X, self.centroids, self.dist_metric)  # compute distance
-            # Assign each point to its closest centroid
-            for point in range(len(dist)):
-                self.labels[point] = (
-                    np.argmin(dist[point])
-                    if self.dist_metric != DistanceMetrics.JACCARD
-                    else np.argmax(dist[point])
-                )
 
-            # For each centroid, get the set of points assigned to it
-            for centroid in range(self.n_clusters):
-                mask = self.labels == centroid
-                points_in_centroid = X[mask]
-                centroid_object = []
-                for i, var in enumerate(
-                    points_in_centroid
-                ):  # can iterate over the index and the value (index is assigned to i, value is assigned to var)
-                    centroid_object[i] = var.mode()
-                self.centroids[centroid] = (
-                    centroid_object  # for each var, the item at centroids for
-                )
+            # Assign each point to its closest centroid (vectorize using np.argmin on axis 1)
+            self.labels = np.argmin(dist, axis=1)
+
+            # update centroids
+            self.centroids = update_centroids_mode(X, self.labels, self.n_clusters)
+
+        self.decoded_centroids = self._decode(self.centroids)

@@ -1,61 +1,55 @@
 import numpy as np
 import numpy.typing as npt
-import pandas as pd
 from numba import prange, njit
-from enum import Enum
-
-
-
-class DistanceMetrics(Enum):
-    HAMMING = 'hamming'
-    JACCARD = 'jaccard'
-    NG = 'ng'
-
-#we have list of centroid which we want to compare our input to
-# a point is a list of xyz, in higher dimensions it has n items
-# we have a list of centroids we want to compare against a list of targets
-
-# X is data, Centroids is centroids
-@njit(parallel=True, fastmath=True)
-def hamming(X:np.ndarray, centroids:np.ndarray) -> npt.NDArray[np.float64]: #np.array enforces compiler check on the type you're passing in (must be an np.array)
-    assert X.shape[1] == centroids.shape[1] # (taking the first index of shape, should be equal to the first index of centroids. Shape's index of [1] is the number of columns!)the first point must have the same shape (same number of arguments) as the first centroid
-    rows = X.shape[0] # NUMBER of rows
-    n_clusters = centroids.shape[0] #number of columns of distance matrix = number of centroids
-    distance: npt.NDArray[np.float64] = np.zeros((rows, n_clusters), dtype=int)#matrix
-    for i in prange(rows): # iterate from 0 through the number of rows
-        for j in range(n_clusters):
-            dist = 0
-            for (a, b) in zip(X[i], centroids[j]):
-                if a != b:
-                    dist += 1
-            distance[i][j] = dist
-    return distance
 
 
 @njit(parallel=True, fastmath=True)
-def jaccard(X:np.ndarray, centroids:np.ndarray) -> npt.NDArray[np.float64]: #np.array enforces compiler check on the type you're passing in (must be an np.array)
-    assert X.shape[1] == centroids.shape[1] # (taking the first index of shape, should be equal to the first index of centroids. Shape's index of [1] is the number of columns!)the first point must have the same shape (same number of arguments) as the first centroid
-    rows, cols = X.shape # NUMBER of rows
-    n_clusters = centroids.shape[0] #number of columns of distance matrix = number of centroids
-    distance = np.zeros((rows, n_clusters), dtype=int)#matrix
-    for i in prange(rows): # iterate from 0 through the number of rows
-        for j in range(n_clusters):
-            dist = 0
-            for (a, b) in zip(X[i], centroids[j]):
-                if a == b:
-                    dist += 1
-            distance[i][j] = dist/(cols * 2 - dist) #double the num of columns (because a union between both centroids and data points), then subtract the numner of similar elements
-    return distance
+def update_centroids(
+    X: npt.NDArray[np.int64], labels: npt.NDArray[np.int64], n_clusters: int
+) -> npt.NDArray[np.int64]:
+    """
+    Compute new centroids by mode for each cluster for each feature.
 
-def ng(X, centroids):
-    pass
+    Args:
+        X: (npt.NDArray[np.int64]) Encoded data array (n_samples, n_features)
+        labels: (npt.NDArray[np.int64]) Cluster labels for each sample (n_samples, 1)
+        n_clusters: (int) Number of clusters
 
-def distance(X:np.ndarray, centroids:np.ndarray, metric:DistanceMetrics) -> npt.NDArray[np.float64]:
-    if metric == DistanceMetrics.HAMMING:
-        return hamming(X, centroids)
-    elif metric == DistanceMetrics.JACCARD:
-        return jaccard(X, centroids)
-    elif metric == DistanceMetrics.NG:
-        return ng(X, centroids)
-    else:
-        raise ValueError(f"Unsupported distance metric: {metric}")
+    Returns:
+        new_centroids: (npt.NDArray[np.int64]) Array of new centroids (n_clusters, n_features)
+    """
+
+    n_samples, n_features = X.shape
+    new_centroids = np.zeros((n_clusters, n_features), dtype=np.int64)
+
+    # parallelize over cols; note that this is thread safe bc each thread writes to diff col of new_centroids
+    for j in prange(n_features):
+        col = X[:, j]
+
+        # find max val to allocate counts array size
+        max_val = -1
+        for i in range(n_samples):
+            if col[i] > max_val:
+                max_val = col[i]
+
+        # allocate counts array
+        counts = np.zeros((n_clusters, max_val + 1), dtype=np.int32)
+
+        # count frequencies by point
+        for i in range(n_samples):
+            cluster_id = labels[i]
+            val = col[i]
+            counts[cluster_id, val] += 1
+
+        # find mode for each row
+        for k in range(n_clusters):
+            best_val = 0
+            best_count = -1
+            for v in range(max_val + 1):
+                if counts[k, v] > best_count:
+                    best_count = counts[k, v]
+                    best_val = v
+
+            new_centroids[k, j] = best_val
+
+    return new_centroids
