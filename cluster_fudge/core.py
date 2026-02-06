@@ -75,12 +75,12 @@ class ClusterFudge:
         # decoded is a list of arrays representing columns; stack horizontally so each row is a centroid
         return np.array(decoded).T
 
-    def fit(self, X: npt.NDArray[np.float64]) -> None:
+    def fit(self, X: npt.ArrayLike) -> None:
         """
         Fit the model to the input data.
 
         Args:
-            X: (npt.NDArray[np.float64]) Data array (n_samples, n_features)
+            X: (npt.ArrayLike) Data array (n_samples, n_features)
 
         Returns:
             None
@@ -116,12 +116,12 @@ class ClusterFudge:
 
         self.decoded_centroids = self._decode(self.centroids)
 
-    def predict(self, X: npt.NDArray[np.float64]) -> npt.NDArray[np.int64]:
+    def predict(self, X: npt.ArrayLike) -> npt.NDArray[np.int64]:
         """
         Predict the cluster labels for the input data.
 
         Args:
-            X: (npt.NDArray[np.float64]) Data array (n_samples, n_features)
+            X: (npt.ArrayLike) Data array (n_samples, n_features)
 
         Returns:
             (npt.NDArray[np.int64]) Labels array (n_samples,)
@@ -135,12 +135,12 @@ class ClusterFudge:
         dist = distance(X, self.centroids, self.dist_metric)
         return np.argmin(dist, axis=1)
 
-    def fit_predict(self, X: npt.NDArray[np.float64]) -> npt.NDArray[np.int64]:
+    def fit_predict(self, X: npt.ArrayLike) -> npt.NDArray[np.int64]:
         """
         Fit the model to the input data and return the cluster labels.
 
         Args:
-            X: (npt.NDArray[np.float64]) Data array (n_samples, n_features)
+            X: (npt.ArrayLike) Data array (n_samples, n_features)
 
         Returns:
             (npt.NDArray[np.int64]) Labels array (n_samples,)
