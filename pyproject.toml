@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kluster_fudge"
-version = "0.1.0"
+version = "0.1.0.post1"
 authors = [
   { name="Ethan Wu, Will Stokes", email="ewu@u.northwestern.edu" }
 ]
